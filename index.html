@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>:: SYSTÈME COMPROMIS ::</title>
+<style>
+  :root{
+    --green:#00ff41; --green-dim:#00b32d; --green-dark:#004d13;
+    --bg:#000500; --red:#ff3b3b; --amber:#ffb000; --pink:#ff5ea8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--green);
+    font-family:"Courier New",Courier,monospace;
+    overflow:hidden; position:relative;
+    -webkit-text-size-adjust:100%; text-size-adjust:100%;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #matrix{position:fixed;inset:0;z-index:0;opacity:.35}
+  #crt{
+    position:fixed;inset:0;z-index:40;pointer-events:none;
+    background:
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%),
+      repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,20,0,.25) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode:multiply;
+  }
+  #screen{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;padding:16px;max-width:900px;margin:0 auto}
+
+  /* Démarrage */
+  #boot{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:26px}
+  #boot .cursor-line{font-size:clamp(13px,3.5vw,18px);color:var(--green-dim);min-height:1.4em}
+  #boot h1{font-size:clamp(20px,6vw,40px);letter-spacing:2px;text-shadow:0 0 12px var(--green)}
+  #startBtn{font-family:inherit;cursor:pointer;background:transparent;color:var(--green);border:2px solid var(--green);padding:16px 26px;font-size:clamp(14px,3.8vw,20px);letter-spacing:2px;text-transform:uppercase;box-shadow:0 0 14px var(--green-dark);transition:all .15s}
+  #startBtn:hover,#startBtn:focus{background:var(--green);color:#000;box-shadow:0 0 28px var(--green)}
+  #startBtn:active{transform:scale(.97)}
+  .hint{font-size:12px;color:var(--green-dark);max-width:320px;line-height:1.6}
+  #loadbar{font-size:11px;color:var(--green-dark);min-height:1.2em;letter-spacing:1px}
+
+  /* Terminal */
+  #terminal{flex:1;overflow-y:auto;overflow-x:hidden;font-size:clamp(13px,3.3vw,16px);line-height:1.55;padding:8px 4px 40vh;scrollbar-width:thin;scrollbar-color:var(--green-dark) transparent}
+  #terminal::-webkit-scrollbar{width:6px}
+  #terminal::-webkit-scrollbar-thumb{background:var(--green-dark);border-radius:3px}
+  .line{white-space:pre-wrap;word-break:break-word;margin:3px 0}
+  .sys{color:var(--green-dim)}
+  .warn{color:var(--amber);text-shadow:0 0 6px var(--amber)}
+  .danger{color:var(--red);text-shadow:0 0 6px var(--red)}
+  .ok{color:var(--green);text-shadow:0 0 6px var(--green)}
+  .dim{color:var(--green-dark)}
+  .blink{animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .bar{color:var(--green);letter-spacing:1px}
+
+  .msg{border:1px solid var(--pink);background:rgba(255,94,168,.06);color:#ffd6e8;padding:16px 18px;margin:16px 0;box-shadow:0 0 18px rgba(255,94,168,.25);animation:cardIn .5s ease both;text-shadow:0 0 6px rgba(255,94,168,.4)}
+  .msg .tag{display:block;color:var(--pink);font-size:12px;letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;opacity:.85}
+  .msg .body{font-size:clamp(15px,4vw,19px);line-height:1.6}
+  @keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+
+  .glitch{position:relative;display:inline-block;color:var(--green)}
+  .glitch::before,.glitch::after{content:attr(data-text);position:absolute;left:0;top:0;width:100%;overflow:hidden}
+  .glitch::before{color:var(--pink);animation:gl1 .7s infinite linear alternate}
+  .glitch::after{color:#00e5ff;animation:gl2 .9s infinite linear alternate}
+  @keyframes gl1{0%{clip-path:inset(0 0 80% 0);transform:translateX(-2px)}100%{clip-path:inset(60% 0 0 0);transform:translateX(2px)}}
+  @keyframes gl2{0%{clip-path:inset(20% 0 50% 0);transform:translateX(2px)}100%{clip-path:inset(70% 0 10% 0);transform:translateX(-2px)}}
+
+  /* Interrogatoire : champ où Aline écrit */
+  .ask{border:1px solid var(--pink);background:rgba(255,94,168,.05);padding:12px 14px;margin:14px 0;box-shadow:0 0 16px rgba(255,94,168,.18);animation:cardIn .45s ease both}
+  .ask .q{color:var(--pink);font-size:12px;letter-spacing:1px;margin-bottom:8px;text-transform:uppercase;opacity:.85}
+  .ask .field{display:flex;align-items:center;gap:8px}
+  .ask .prompt{color:var(--pink);font-weight:bold}
+  .ask textarea{flex:1;background:rgba(0,0,0,.35);color:#ffd6e8;border:1px solid var(--green-dark);font-family:inherit;font-size:16px;padding:8px 10px;resize:none;min-height:2.6em;outline:none;caret-color:var(--pink)}
+  .ask textarea:focus{border-color:var(--pink);box-shadow:0 0 10px rgba(255,94,168,.3)}
+  .ask .arow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .ask button{font-family:inherit;cursor:pointer;background:transparent;color:var(--pink);border:1px solid var(--pink);padding:7px 14px;font-size:12px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}
+  .ask button:hover{background:var(--pink);color:#000}
+  .ask .skip{color:var(--green-dark);border-color:var(--green-dark)}
+  .ask .skip:hover{background:var(--green-dark);color:#000}
+  .answer{color:var(--pink);text-shadow:0 0 6px rgba(255,94,168,.4);margin:3px 0;white-space:pre-wrap;word-break:break-word}
+
+  /* La lettre */
+  .letter{border:1px solid var(--pink);background:linear-gradient(180deg, rgba(255,94,168,.09), rgba(255,94,168,.03));padding:20px 20px 18px;margin:18px 0;box-shadow:0 0 28px rgba(255,94,168,.3);animation:cardIn .6s ease both}
+  .letter .tag{display:block;color:var(--pink);font-size:12px;letter-spacing:2px;margin-bottom:14px;text-transform:uppercase;opacity:.9}
+  .letter .lbody{color:#ffe3ef;font-size:clamp(15px,4vw,19px);line-height:1.7}
+  .letter .lline{margin:11px 0;min-height:1.2em;text-shadow:0 0 6px rgba(255,94,168,.3)}
+  .letter .lsig{margin-top:18px;text-align:right;font-size:clamp(16px,4.6vw,22px);color:var(--pink);text-shadow:0 0 10px var(--pink);opacity:0;transition:opacity 1s}
+  .letter .lsig.show{opacity:1}
+  .strike{text-decoration:line-through;opacity:.4!important}
+
+  /* Le masque qui tombe */
+  .facegrp{transition:opacity 1.3s ease}
+  #speaker.unmasked .facegrp{opacity:.1}
+  .revealheart{opacity:0;transition:opacity 1.3s ease;filter:drop-shadow(0 0 10px rgba(255,94,168,.85))}
+  #speaker.unmasked .revealheart{opacity:1;animation:beat 1.1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+
+  /* Coffre-fort de fichiers */
+  .vault{border:1px dashed var(--green-dark);padding:10px 12px;margin:10px 0;font-size:clamp(12px,3.1vw,15px)}
+  .vault .vrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+  .vault .st-lock{color:var(--red)} .vault .st-open{color:var(--pink);text-shadow:0 0 6px rgba(255,94,168,.5)}
+
+  /* Secousse d'écran */
+  @keyframes shake{10%,90%{transform:translate(-1px,0)}20%,80%{transform:translate(2px,0)}30%,50%,70%{transform:translate(-4px,0)}40%,60%{transform:translate(4px,0)}}
+  .shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97) both}
+
+  #finale{text-align:center;margin:24px 0}
+  #finale pre{color:var(--pink);font-size:clamp(6px,2.1vw,11px);line-height:1.05;text-shadow:0 0 10px rgba(255,94,168,.6);display:inline-block;text-align:left;animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.6;transform:scale(1.03)}}
+  #finale .names{font-size:clamp(22px,7vw,50px);letter-spacing:3px;color:var(--pink);text-shadow:0 0 14px var(--pink),0 0 30px rgba(255,94,168,.55);margin:14px 0;animation:neon 2.4s ease-in-out infinite}
+  @keyframes neon{50%{opacity:.78;text-shadow:0 0 8px var(--pink)}}
+  #finale .heartbig{display:inline-block;animation:beat 1.1s ease-in-out infinite}
+  @keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.28)}}
+  #replyLove{font-family:inherit;cursor:pointer;background:transparent;color:var(--pink);border:2px solid var(--pink);padding:14px 22px;font-size:clamp(14px,3.6vw,18px);letter-spacing:2px;text-transform:uppercase;box-shadow:0 0 16px rgba(255,94,168,.4);transition:all .15s;margin-top:14px}
+  #replyLove:hover{background:var(--pink);color:#000;box-shadow:0 0 28px var(--pink)}
+
+  #burst{position:fixed;inset:0;z-index:35;pointer-events:none}
+  /* Barre de progression façon fuite de données */
+  #prog{position:fixed;top:0;left:0;right:0;z-index:45;height:3px;background:rgba(0,50,20,.45)}
+  #progfill{height:100%;width:0;background:var(--green);box-shadow:0 0 8px var(--green);transition:width .7s ease}
+  body.love #progfill{background:var(--pink);box-shadow:0 0 8px var(--pink)}
+  #progtxt{position:fixed;top:6px;right:10px;z-index:45;font-size:10px;letter-spacing:1px;color:var(--green-dim);text-shadow:0 0 6px var(--green-dark)}
+  body.love #progtxt{color:var(--pink)}
+
+  /* ===== Personnage Anonymous (narrateur) ===== */
+  #stage{flex:none;display:flex;align-items:flex-end;justify-content:center;height:clamp(140px,24vh,220px);position:relative;margin-bottom:4px}
+  #speaker{position:relative;width:clamp(140px,38vw,210px);height:100%;display:flex;align-items:flex-end;justify-content:center}
+  #speaker .backglow{position:absolute;inset:-6% -10% 10% -10%;background:radial-gradient(circle at 50% 42%, rgba(0,255,65,.20), transparent 60%);filter:blur(8px);opacity:.45;transition:opacity .3s}
+  #speaker.speaking .backglow{opacity:1;animation:glowpulse 1.1s ease-in-out infinite}
+  @keyframes glowpulse{50%{opacity:.55}}
+  #anon{width:100%;height:100%;filter:drop-shadow(0 6px 16px rgba(0,0,0,.6))}
+  #anon .head{transform-origin:110px 150px;animation:idlebob 5.5s ease-in-out infinite}
+  @keyframes idlebob{0%,100%{transform:rotate(-1.1deg) translateY(0)}50%{transform:rotate(1.1deg) translateY(-2px)}}
+  #speaker.speaking .head{animation:talkbob .6s ease-in-out infinite}
+  @keyframes talkbob{0%,100%{transform:rotate(-1deg) translateY(0)}25%{transform:rotate(.7deg) translateY(-1.5px)}50%{transform:rotate(1.3deg) translateY(1px)}75%{transform:rotate(.1deg) translateY(-1px)}}
+  #speaker.speaking .spark{animation:sparkle 1s ease-in-out infinite}
+  @keyframes sparkle{50%{opacity:.4}}
+  /* humeurs du personnage */
+  .hearts{opacity:0;transition:opacity .4s}
+  #speaker.menace .spark{fill:#ff3b3b}
+  #speaker.menace .backglow{background:radial-gradient(circle at 50% 42%, rgba(255,59,59,.22), transparent 60%)}
+  #speaker.tender .spark{opacity:0}
+  #speaker.tender .hearts{opacity:1}
+  #speaker.tender .backglow{background:radial-gradient(circle at 50% 42%, rgba(255,94,168,.26), transparent 60%)}
+  #speaker.tender .eq span{background:var(--pink);box-shadow:0 0 6px var(--pink)}
+  #speaker.speaking.tender .hearts{animation:heartpulse 1s ease-in-out infinite}
+  @keyframes heartpulse{0%,100%{opacity:1;filter:drop-shadow(0 0 1px var(--pink))}50%{opacity:.6;filter:drop-shadow(0 0 5px var(--pink))}}
+  .eq{position:absolute;bottom:2px;left:50%;transform:translateX(-50%);display:flex;gap:3px;align-items:flex-end;height:16px;opacity:0;transition:opacity .25s}
+  #speaker.speaking .eq{opacity:.85}
+  .eq span{width:3px;height:3px;background:var(--green);box-shadow:0 0 6px var(--green);animation:eqbar .62s ease-in-out infinite}
+  .eq span:nth-child(2){animation-delay:.12s}.eq span:nth-child(3){animation-delay:.24s}
+  .eq span:nth-child(4){animation-delay:.36s}.eq span:nth-child(5){animation-delay:.48s}
+  @keyframes eqbar{0%,100%{height:3px}50%{height:15px}}
+
+  #controls{position:fixed;bottom:0;left:0;right:0;z-index:50;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(0deg,rgba(0,5,0,.98) 60%,transparent)}
+  #controls button{font-family:inherit;cursor:pointer;background:rgba(0,10,0,.8);color:var(--green);border:1px solid var(--green-dim);padding:8px 14px;font-size:12px;letter-spacing:1px;text-transform:uppercase;transition:all .15s}
+  #controls button:hover{background:var(--green);color:#000}
+  #controls button:disabled{opacity:.35;cursor:default}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="matrix"></canvas>
+<canvas id="burst"></canvas>
+<div id="crt"></div>
+<div id="prog"><div id="progfill"></div></div>
+<div id="progtxt"></div>
+
+<div id="boot">
+  <div class="cursor-line" id="bootLine">initialisation du noyau<span class="blink">_</span></div>
+  <h1 class="glitch" data-text=":: ACCÈS NON AUTORISÉ ::">:: ACCÈS NON AUTORISÉ ::</h1>
+  <button id="startBtn">&gt;_ Établir la connexion</button>
+  <p class="hint">🔊 Monte le son — quelqu'un va te parler.</p>
+  <div id="loadbar"></div>
+</div>
+
+<div id="screen">
+  <div id="stage">
+    <div id="speaker">
+      <div class="backglow"></div>
+      <svg id="anon" viewBox="0 0 220 240" aria-hidden="true">
+        <defs>
+          <radialGradient id="maskg" cx="50%" cy="40%" r="68%">
+            <stop offset="0%" stop-color="#f4f4f6"/>
+            <stop offset="68%" stop-color="#dcdce1"/>
+            <stop offset="100%" stop-color="#b4b5bc"/>
+          </radialGradient>
+          <linearGradient id="hoodg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#14231a"/>
+            <stop offset="100%" stop-color="#050a07"/>
+          </linearGradient>
+        </defs>
+        <!-- épaules / sweat à capuche -->
+        <path class="body" d="M0,240 C0,196 42,174 110,174 C178,174 220,196 220,240 Z" fill="url(#hoodg)" stroke="#0e4a29" stroke-width="1.2"/>
+        <g class="head">
+          <!-- capuche -->
+          <path class="hood" d="M40,188 C14,150 16,76 70,44 C86,34 98,28 110,28 C122,28 134,34 150,44 C204,76 206,150 180,188 C150,172 70,172 40,188 Z" fill="url(#hoodg)" stroke="#0f5e32" stroke-width="1.4"/>
+          <!-- plis de la capuche -->
+          <path d="M44,180 C24,146 28,86 72,52" fill="none" stroke="#0a3c22" stroke-width="1.1" opacity=".6"/>
+          <path d="M176,180 C196,146 192,86 148,52" fill="none" stroke="#0a3c22" stroke-width="1.1" opacity=".6"/>
+          <!-- ombre intérieure de la capuche -->
+          <path d="M58,152 C46,110 62,66 110,62 C158,66 174,110 162,152 C140,140 80,140 58,152 Z" fill="#04120a"/>
+          <g class="facegrp">
+          <!-- masque (visage) -->
+          <path class="mask" d="M110,68 C141,68 151,95 151,118 C151,147 134,170 110,182 C86,170 69,147 69,118 C69,95 79,68 110,68 Z" fill="url(#maskg)" stroke="#9a9ba2" stroke-width="0.8"/>
+          <!-- joues rosées -->
+          <circle cx="88" cy="134" r="8.5" fill="#e79aa4" opacity="0.45"/>
+          <circle cx="132" cy="134" r="8.5" fill="#e79aa4" opacity="0.45"/>
+          <!-- sourcils arqués -->
+          <path d="M79,103 Q92,94 105,102" fill="none" stroke="#141619" stroke-width="3.2" stroke-linecap="round"/>
+          <path d="M115,102 Q128,94 141,103" fill="none" stroke="#141619" stroke-width="3.2" stroke-linecap="round"/>
+          <!-- yeux -->
+          <g class="eyes">
+            <path d="M80,117 Q92,108 104,117 Q92,124 80,117 Z" fill="#0b2816"/>
+            <path d="M116,117 Q128,108 140,117 Q128,124 116,117 Z" fill="#0b2816"/>
+            <circle class="spark" cx="92" cy="116" r="2.4" fill="#00ff88"/>
+            <circle class="spark" cx="128" cy="116" r="2.4" fill="#00ff88"/>
+            <g class="hearts" fill="#ff5ea8">
+              <path transform="translate(92,116) scale(0.52)" d="M0,6 C-2,2 -8,0 -8,-4 C-8,-7 -5,-9 -2,-8 C-1,-7.5 0,-6 0,-5 C0,-6 1,-7.5 2,-8 C5,-9 8,-7 8,-4 C8,0 2,2 0,6 Z"/>
+              <path transform="translate(128,116) scale(0.52)" d="M0,6 C-2,2 -8,0 -8,-4 C-8,-7 -5,-9 -2,-8 C-1,-7.5 0,-6 0,-5 C0,-6 1,-7.5 2,-8 C5,-9 8,-7 8,-4 C8,0 2,2 0,6 Z"/>
+            </g>
+          </g>
+          <!-- nez -->
+          <path d="M110,122 L105,140 Q110,143 115,140 Z" fill="#cccdd2"/>
+          <!-- moustache relevée (guidon) -->
+          <path d="M110,150 C99,158 87,155 82,142" fill="none" stroke="#141619" stroke-width="3.4" stroke-linecap="round"/>
+          <path d="M110,150 C121,158 133,155 138,142" fill="none" stroke="#141619" stroke-width="3.4" stroke-linecap="round"/>
+          <!-- bouche -->
+          <path d="M101,155 Q110,160 119,155" fill="none" stroke="#141619" stroke-width="2" stroke-linecap="round"/>
+          <!-- bouc / barbichette pointue -->
+          <path d="M104,162 Q110,165 116,162 Q113,174 110,183 Q107,174 104,162 Z" fill="#141619"/>
+          </g>
+          <!-- cœur révélé quand le masque tombe -->
+          <g class="revealheart" fill="#ff5ea8"><path transform="translate(110,120) scale(4.6)" d="M0,6 C-2,2 -8,0 -8,-4 C-8,-7 -5,-9 -2,-8 C-1,-7.5 0,-6 0,-5 C0,-6 1,-7.5 2,-8 C5,-9 8,-7 8,-4 C8,0 2,2 0,6 Z"/></g>
+        </g>
+      </svg>
+      <div class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    </div>
+  </div>
+  <div id="terminal" aria-live="polite"></div>
+</div>
+
+<div id="controls" class="hidden">
+  <button id="skipBtn">⏩ Accélérer</button>
+  <button id="muteBtn">🔊 Son : ON</button>
+  <button id="replayBtn" class="hidden">↻ Rejouer</button>
+</div>
+
+<script>
+/* =======================================================================
+   SCÉNARIO — synchronisé avec les clips audio de /audio
+   ======================================================================= */
+const SCENES = [
+  /* ===== ACTE 1 — L'INTRUSION ===== */
+  {t:'say', id:'h1', cls:'warn'},
+  {t:'say', id:'h2', cls:'warn'},
+  {t:'say', id:'h3', cls:'line'},
+  {t:'say', id:'h4', cls:'warn'},
+  {t:'scan'},
+  {t:'say', id:'h5', cls:'line'},
+  {t:'say', id:'h6', cls:'ok'},
+  {t:'say', id:'h7', cls:'warn'},
+  {t:'say', id:'d1', cls:'warn'},
+  {t:'vault'},
+  {t:'say', id:'h8', cls:'danger'},
+  {t:'say', id:'h9', cls:'line'},
+  {t:'ask', id:'q1', react:"> réponse enregistrée. On progresse."},
+  {t:'leak'},
+
+  /* ===== ACTE 2 — LES FICHIERS ===== */
+  {t:'say', id:'m1i', cls:'warn'},
+  {t:'msg', id:'m1b', tag:'fichier_01 // premier_regard.txt'},
+  {t:'say', id:'m2i', cls:'warn'},
+  {t:'msg', id:'m2b', tag:'fichier_02 // ta_memoire.txt'},
+  {t:'ask', id:'q2', react:"> ...noté. Il va adorer lire ça un jour."},
+  {t:'say', id:'m3i', cls:'warn'},
+  {t:'msg', id:'m3b', tag:'fichier_03 // le_matin.txt'},
+  {t:'say', id:'t1', cls:'ok'},
+  {t:'say', id:'n1i', cls:'warn'},
+  {t:'msg', id:'n1b', tag:'fichier_04 // les_petites_choses.txt'},
+  {t:'say', id:'m5i', cls:'warn'},
+  {t:'msg', id:'m5b', tag:'fichier_05 // ton_rire.txt'},
+  {t:'say', id:'n2i', cls:'warn'},
+  {t:'msg', id:'n2b', tag:'fichier_06 // les_jours_sombres.txt'},
+  {t:'say', id:'d3', cls:'line'},
+  {t:'say', id:'n4i', cls:'warn'},
+  {t:'msg', id:'n4b', tag:'fichier_07 // ce_que_je_n_ose_pas.txt'},
+  {t:'say', id:'n3i', cls:'warn'},
+  {t:'msg', id:'n3b', tag:'fichier_08 // plus_tard.txt'},
+  {t:'say', id:'noeli', cls:'warn'},
+  {t:'msg', id:'noelb', tag:'fichier_09 // bientot_noel.txt'},
+
+  /* ===== ACTE 3 — LA LETTRE ===== */
+  {t:'say', id:'leti', cls:'warn'},
+  {t:'drafts'},
+  {t:'letter', ids:['let1','let2','let3','let4','let5','let6'], tag:'pour_toi_Aline.txt'},
+  {t:'ask', id:'q3', react:"> ...je le savais. Mais il fallait que tu l'écrives."},
+  {t:'ask', id:'q4', react:"> Transmis. Mot pour mot. Il la gardera."},
+
+  /* ===== ACTE 4 — LA RÉVÉLATION ===== */
+  {t:'say', id:'rev1', cls:'line'},
+  {t:'say', id:'rev2', cls:'line'},
+  {t:'say', id:'rev3', cls:'line'},
+  {t:'say', id:'rev4', cls:'line'},
+  {t:'say', id:'rev5', cls:'ok'},
+  {t:'unmask'},
+  {t:'msg', id:'m4b', tag:'message // je_t_aime.txt'},
+  {t:'finale'},
+];
+
+/* Réponses saisies par Aline -> envoyées à Florent à la fin */
+const ANSWERS = [];
+/* Réception des réponses d'Aline par email, sans compte (service FormSubmit). */
+const SEND_EMAIL = "bermond.florent06@gmail.com";
+
+/* Texte affiché (= ce que la voix dit). Doit matcher l'audio. */
+const TXT = {
+ h1:"Tiens donc. Bonsoir, Aline.",
+ h2:"Alors c'est toi, la fameuse Aline. Je comprends mieux, maintenant.",
+ h3:"Rassure-toi, je ne te veux aucun mal. Toi, en tout cas.",
+ h4:"Par contre, ton Florent, lui, il va passer un sale quart d'heure.",
+ h5:"J'ai forcé son ordinateur. Franchement, sa sécurité, c'est une insulte.",
+ h6:"Et là, qu'est-ce que je trouve ? Un dossier caché. À ton nom.",
+ h7:"Oh, le petit cachottier. Il a écrit des choses. Beaucoup de choses.",
+ h8:"Je pourrais tout effacer, juste pour l'embêter. Mais non. Je vais faire bien pire.",
+ h9:"Je vais tout te montrer. Installe-toi confortablement.",
+ m1i:"Fichier numéro un. Et déjà, il m'agace tellement c'est mignon.",
+ m1b:"La première fois que je t'ai vue, j'ai oublié comment parler. Depuis, tu es la seule chose qui compte vraiment pour moi.",
+ m2i:"Fichier deux. Là, même moi, je lève les yeux au ciel. Mais je vais te le lire quand même.",
+ m2b:"J'ai la mémoire pleine de tes sourires. Et crois-moi, je n'efface rien.",
+ m3i:"Celui-là, il l'avait caché tout au fond. Le fourbe.",
+ m3b:"Me réveiller à côté de toi, c'est la seule raison pour laquelle je supporte les matins.",
+ t1:"Et toi, arrête de sourire comme ça. Ça se voit d'ici que ça te plaît.",
+ m4b:"Je ne te le dis sûrement pas assez. Alors je laisse une machine le crier à ma place. Je t'aime, Aline. Pour de vrai.",
+ d1:"Attends. Il a un dossier. Son titre : à lui dire un jour. Le lâche, il n'a jamais osé. Alors je vais le faire à sa place.",
+ d3:"Bon. Même moi, là, ça me fait quelque chose. Mais tu ne répètes ça à personne. J'ai une réputation.",
+ q1:"Première question. Et sois honnête, je le verrai si tu mens. Tu te doutais qu'il pensait tout ça ? Écris-moi la vérité.",
+ q2:"Deuxième question. Là, maintenant, qu'est-ce que ça te fait de lire ça ? Un mot suffit. Mais le vrai.",
+ q3:"Dernière question. Et c'est la plus importante. Est-ce que tu l'aimes autant qu'il t'aime ? Réfléchis avant d'écrire.",
+ m5i:"Celui-là, il a dû sourire tout seul en l'écrivant. Ça se sent d'ici.",
+ m5b:"Ton rire, je le reconnaîtrais entre mille. C'est devenu le son qui me dit que tout va bien.",
+ n1i:"Fichier suivant. Et celui-là, franchement, il résume tout.",
+ n1b:"Ce n'est pas les grands moments qui me rendent heureux. C'est toi qui chantes faux dans la cuisine. C'est ta main qui cherche la mienne sans même y penser. C'est ça, ma vie préférée.",
+ n2i:"Celui-ci, il ne l'a montré à personne. Je comprends pourquoi.",
+ n2b:"Les jours où je vais mal, tu ne cherches pas à me réparer. Tu restes, juste à côté. Et personne n'avait jamais fait ça pour moi.",
+ n4i:"Et celui-là... il a hésité très longtemps avant de l'écrire.",
+ n4b:"J'ai toujours eu peur de trop m'attacher. De souffrir. Avec toi, pour la première fois, cette peur ne me fait plus peur. Tu me donnes envie d'être courageux.",
+ n3i:"Alors là, il se projette loin. Très loin. Le grand romantique.",
+ n3b:"Je nous imagine dans dix ans, dans vingt ans. Les habitudes, les silences tranquilles, les rides au coin des yeux. Et à chaque fois, tu es là. C'est tout ce que je veux.",
+ noeli:"Oh, attends. Un fichier tout récent, celui-là. Monsieur compte déjà les jours, apparemment.",
+ noelb:"Bientôt, c'est Noël. Et cette année, tu seras là, tout près de moi. Je n'ai rien demandé au Père Noël. J'ai déjà tout ce que je voulais.",
+ leti:"Attends. Il y a un dernier dossier. Celui-là est protégé. Un seul fichier, tout seul. Son nom : pour toi, Aline.",
+ let1:"Aline. Si tu lis ces mots, c'est que je n'ai pas réussi à te les dire en face. Encore une fois.",
+ let2:"Je ne suis pas doué pour ça. Les déclarations, les grands discours, ça me terrifie depuis toujours.",
+ let3:"Mais il y a des choses que tu dois savoir. Alors je les écris ici, dans un fichier que je croyais que personne ne lirait jamais.",
+ let4:"Tu es la plus belle chose qui me soit arrivée. Et je ne le dis pas comme on le dit dans les films.",
+ let5:"Je le dis parce que c'est vrai. Depuis toi, tout est plus doux, plus clair, enfin à sa place.",
+ let6:"Tu m'as rendu meilleur, sans jamais me le demander. Et je passerai ma vie à essayer d'en être digne.",
+ q4:"Une dernière chose. Si tu pouvais lui répondre une seule phrase, maintenant, ce serait laquelle ? Écris-la. Je te promets qu'il la lira.",
+ rev1:"Bon. Maintenant, je vais arrêter de faire semblant.",
+ rev2:"Ce pirate, cette voix trafiquée, toute cette mise en scène... ce n'était pas pour te faire peur.",
+ rev3:"C'était juste le seul moyen que j'avais trouvé pour oser te dire tout ça.",
+ rev4:"Il n'y a jamais eu d'intrus, Aline. Juste un garçon maladroit, caché derrière un masque, qui t'aime à en perdre ses mots.",
+ rev5:"C'est moi, depuis le début. C'est Florent.",
+};
+
+const term = document.getElementById('terminal');
+const controls = document.getElementById('controls');
+const skipBtn = document.getElementById('skipBtn');
+const muteBtn = document.getElementById('muteBtn');
+const replayBtn = document.getElementById('replayBtn');
+
+let fast=false, muted=false, aborted=false;
+let matrixPink=false;
+const audios = {};
+let current = null;
+
+/* ---- déblocage audio iOS (doit s'exécuter DANS le geste de clic) ---- */
+function unlockAudio(){
+  // Web Audio
+  try{ if(AC&&AC.state==='suspended') AC.resume();
+       const b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
+  // chaque clip <audio> : créé + débloqué pendant le geste (sinon Safari iOS bloque)
+  Object.keys(TXT).forEach(id=>{
+    let a=audios[id];
+    if(!a){ a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; }
+    try{ a.muted=true; const p=a.play();
+      if(p&&p.then){ p.then(()=>{a.pause();a.currentTime=0;a.muted=false;}).catch(()=>{a.muted=false;}); }
+      else { a.pause(); a.muted=false; }
+    }catch(e){ a.muted=false; }
+  });
+}
+
+/* ---- préchargement audio ---- */
+function preload(){
+  const ids = Object.keys(TXT);
+  let done=0;
+  return Promise.all(ids.map(id=>new Promise(res=>{
+    let a=audios[id], fresh=false;
+    if(!a){ a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; fresh=true; }
+    const ok=()=>{done++;document.getElementById('loadbar').textContent=`chargement ${done}/${ids.length}`;res();};
+    if(a.readyState>=3){ ok(); return; }
+    a.addEventListener('canplaythrough', ok, {once:true});
+    a.addEventListener('error', ok, {once:true});
+    if(fresh) a.load();
+    setTimeout(ok, 6000); // filet de sécurité
+  })));
+}
+
+const sleep = ms => new Promise(r=>setTimeout(r, fast?Math.min(ms,60):ms));
+function scrollBottom(){ term.scrollTop = term.scrollHeight; }
+function print(html, cls='line'){const el=document.createElement('div');el.className='line '+cls;el.innerHTML=html;term.appendChild(el);scrollBottom();return el;}
+
+const speaker=document.getElementById('speaker');
+function setSpeaking(on){ if(speaker) speaker.classList.toggle('speaking', on); }
+
+function playAndWait(id){
+  return new Promise(res=>{
+    const a=audios[id];
+    if(!a){res(1.6);return;}
+    current=a;
+    a.muted=muted; a.playbackRate=fast?1.9:1; a.currentTime=0;
+    const done=()=>{a.onended=null;setSpeaking(false);res(a.duration||1.6);};
+    a.onended=done;
+    setSpeaking(true);
+    a.play().catch(()=>{setSpeaking(false);res(a.duration||1.6);});
+  });
+}
+function clipDur(id){const a=audios[id];return (a&&isFinite(a.duration)&&a.duration>0)?a.duration:Math.max(1.5,(TXT[id]||'').length*0.06);}
+
+async function typeInto(el, text, ms){
+  const n=Math.max(text.length,1); const delay=ms/n;
+  for(let i=0;i<text.length && !aborted;i++){el.textContent=text.slice(0,i+1);if(i%2===0)sfxType();scrollBottom();await sleep(delay);}
+  el.textContent=text; scrollBottom();
+}
+
+async function sayLine(id, cls){
+  const el=print('', 'line '+cls);
+  const dur=clipDur(id)/(fast?1.9:1);
+  const p=playAndWait(id);
+  await typeInto(el, TXT[id], Math.max(300,dur*1000*0.9));
+  await p;
+  await sleep(fast?80:260);
+}
+
+async function sayMsg(id, tag){
+  await print(`> déchiffrement de ${tag}`, 'sys');
+  await progress('   decrypt', 1200);
+  const card=document.createElement('div');card.className='msg';
+  card.innerHTML=`<span class="tag">${tag}</span><span class="body"></span>`;
+  term.appendChild(card);scrollBottom();sfxReveal();
+  const bodyEl=card.querySelector('.body');
+  const text=TXT[id];
+  const dur=clipDur(id)/(fast?1.9:1);
+  const p=playAndWait(id);
+  // effet "déchiffrement" synchronisé avec la voix
+  const scr="!<>-_\\/[]{}—=+*^?#01";
+  const total=Math.max(400,dur*1000*0.9); const delay=total/Math.max(text.length,1);
+  for(let i=0;i<text.length && !aborted;i++){
+    bodyEl.textContent=text.slice(0,i)+(i<text.length?scr[Math.floor(Math.random()*scr.length)]:'');
+    if(i%2===0)sfxType();
+    scrollBottom(); await sleep(delay);
+  }
+  bodyEl.textContent=text; scrollBottom();
+  await p; await sleep(fast?120:600);
+}
+
+async function progress(label, ms=2000){
+  const el=document.createElement('div');el.className='line bar';term.appendChild(el);
+  const w=24;
+  for(let i=0;i<=w && !aborted;i++){
+    el.textContent=`${label} [${'█'.repeat(i)}${'░'.repeat(w-i)}] ${Math.round(i/w*100)}%`;
+    scrollBottom(); await sleep(ms/w);
+  }
+}
+
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function shake(){const s=document.getElementById('screen');s.classList.remove('shake');void s.offsetWidth;s.classList.add('shake');sfxGlitch();}
+
+/* ===================== SON (synthétisé, Web Audio) ===================== */
+let AC=null, master=null, drone=null, droneMood=null, hbTimer=null;
+function AN(){return AC?AC.currentTime:0;}
+function initAudio(){
+  if(AC) return;
+  try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; return; }
+  master=AC.createGain(); master.gain.value=muted?0:0.9; master.connect(AC.destination);
+}
+function setMasterMute(m){ if(master){try{master.gain.setTargetAtTime(m?0:0.9, AN(), 0.05);}catch(e){}} }
+function noiseBuffer(dur){ const n=Math.max(1,Math.floor(AC.sampleRate*dur)); const b=AC.createBuffer(1,n,AC.sampleRate); const d=b.getChannelData(0); for(let i=0;i<n;i++)d[i]=Math.random()*2-1; return b; }
+function sfxType(){ if(!AC||muted||fast) return;
+  const o=AC.createOscillator(),g=AC.createGain(),t=AN();
+  o.type='square'; o.frequency.value=1100+Math.random()*600;
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.02,t+0.002); g.gain.exponentialRampToValueAtTime(0.0006,t+0.028);
+  o.connect(g).connect(master); o.start(t); o.stop(t+0.032);
+}
+function sfxGlitch(){ if(!AC) return; const s=AC.createBufferSource(); s.buffer=noiseBuffer(0.4);
+  const f=AC.createBiquadFilter(); f.type='bandpass'; f.Q.value=6; const t=AN();
+  f.frequency.setValueAtTime(380,t); f.frequency.exponentialRampToValueAtTime(3200,t+0.33);
+  const g=AC.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.16,t+0.03); g.gain.exponentialRampToValueAtTime(0.0008,t+0.4);
+  s.connect(f).connect(g).connect(master); s.start(t); s.stop(t+0.42);
+}
+function sfxReveal(){ if(!AC||muted) return; [523.25,659.25,784.0].forEach((fr,i)=>{ const o=AC.createOscillator(),g=AC.createGain(),t=AN()+i*0.09;
+  o.type='sine'; o.frequency.value=fr; g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.07,t+0.05); g.gain.exponentialRampToValueAtTime(0.0006,t+0.8);
+  o.connect(g).connect(master); o.start(t); o.stop(t+0.85); }); }
+function startDrone(mood){
+  if(!AC||droneMood===mood) return;
+  stopDrone(); droneMood=mood;
+  const out=AC.createGain(); out.gain.value=0; out.connect(master);
+  const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value= mood==='warm'?850:320; lp.connect(out);
+  const freqs= mood==='warm'?[130.81,164.81,196.0]:[55,58.27,87.31];
+  const oscs=freqs.map(f=>{ const o=AC.createOscillator(),g=AC.createGain(); o.type= mood==='warm'?'sine':'sawtooth'; o.frequency.value=f; g.gain.value= mood==='warm'?0.05:0.045; o.connect(g).connect(lp); o.start(); return o; });
+  out.gain.setTargetAtTime(mood==='warm'?0.5:0.42, AN(), 0.8);
+  drone={out,oscs};
+}
+function stopDrone(){ if(!drone) return; const d=drone; drone=null; droneMood=null;
+  try{ d.out.gain.setTargetAtTime(0, AN(), 0.4); }catch(e){}
+  setTimeout(()=>{ try{ d.oscs.forEach(o=>o.stop()); }catch(e){} }, 1000); }
+function heartbeat(on){ if(!AC){return;}
+  if(on){ if(hbTimer)return; const beat=()=>{ thump(0); thump(0.30); }; beat(); hbTimer=setInterval(beat,1350); }
+  else { if(hbTimer){clearInterval(hbTimer);hbTimer=null;} } }
+function thump(delay){ if(!AC)return; const t=AN()+delay,o=AC.createOscillator(),g=AC.createGain();
+  o.type='sine'; o.frequency.setValueAtTime(92,t); o.frequency.exponentialRampToValueAtTime(42,t+0.12);
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(0.13,t+0.02); g.gain.exponentialRampToValueAtTime(0.0007,t+0.22);
+  o.connect(g).connect(master); o.start(t); o.stop(t+0.25); }
+
+/* ===================== HUMEUR DU PERSONNAGE ===================== */
+function setMood(m){ if(!speaker)return; speaker.classList.remove('menace','tender'); if(m==='menace'||m==='tender') speaker.classList.add(m); }
+
+/* ===================== PROGRESSION ===================== */
+let progDone=0;
+function setProgress(){ progDone++; const pct=Math.min(100,Math.round(progDone/SCENES.length*100));
+  const f=document.getElementById('progfill'),t=document.getElementById('progtxt');
+  if(f)f.style.width=pct+'%'; if(t)t.textContent=(document.body.classList.contains('love')?'TRANSFERT ':'FUITE ')+pct+'%'; }
+
+/* ===================== LA LETTRE ===================== */
+async function letterScene(ids, tag){
+  print('&nbsp;');
+  print('> ouverture de '+tag,'sys');
+  await progress('   décryptage', 1400);
+  const card=document.createElement('div');card.className='letter';
+  card.innerHTML=`<span class="tag">✉ ${tag}</span><div class="lbody"></div><p class="lsig">— Florent</p>`;
+  term.appendChild(card);scrollBottom();sfxReveal();
+  const body=card.querySelector('.lbody');
+  for(const id of ids){ if(aborted)break;
+    const p=document.createElement('p');p.className='lline';body.appendChild(p);
+    const dur=clipDur(id)/(fast?1.9:1);
+    const pr=playAndWait(id);
+    await typeInto(p, TXT[id], Math.max(400,dur*1000*0.9));
+    await pr; await sleep(fast?120:520);
+  }
+  card.querySelector('.lsig').classList.add('show');
+  scrollBottom(); await sleep(900);
+}
+
+/* ===================== BROUILLONS EFFACÉS ===================== */
+async function draftsAnim(){
+  print('&nbsp;');
+  print('> récupération des brouillons supprimés...','dim');
+  await sleep(500);
+  const tries=[
+    'Chère Aline, je voulais te dire que—',
+    "Aline, depuis qu'on se connaît je—",
+    'Ma puce, tu sais à quel point tu—'
+  ];
+  for(const tx of tries){ if(aborted)break;
+    const el=print('','line dim'); await typeInto(el, tx, 850);
+    await sleep(220); el.classList.add('strike'); sfxGlitch(); await sleep(340);
+  }
+  print('> ... effacé à chaque fois. Sauf un fichier, qu\'il n\'a jamais envoyé.','sys');
+  await sleep(600);
+}
+
+/* ===================== LE MASQUE TOMBE ===================== */
+async function unmaskAnim(){
+  setMood('tender'); shake(); sfxReveal();
+  if(speaker) speaker.classList.add('unmasked');
+  await sleep(1700);
+}
+
+/* ===================== EXPLOSION DE CŒURS ===================== */
+function heartBurst(ms=3800){
+  const cv=document.getElementById('burst'),ctx=cv.getContext('2d');
+  cv.width=innerWidth; cv.height=innerHeight;
+  const cx=innerWidth/2, cy=innerHeight*0.42;
+  const parts=[]; const N=70;
+  for(let i=0;i<N;i++){ const a=Math.random()*Math.PI*2, sp=2+Math.random()*6;
+    parts.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-3,s:10+Math.random()*16,life:1,rot:Math.random()*6}); }
+  const t0=performance.now();
+  function heartPath(ctx,x,y,s){ ctx.beginPath(); const k=s/16;
+    ctx.moveTo(x,y+6*k);
+    ctx.bezierCurveTo(x-2*k,y+2*k,x-8*k,y,x-8*k,y-4*k);
+    ctx.bezierCurveTo(x-8*k,y-7*k,x-5*k,y-9*k,x-2*k,y-8*k);
+    ctx.bezierCurveTo(x-1*k,y-7.5*k,x,y-6*k,x,y-5*k);
+    ctx.bezierCurveTo(x,y-6*k,x+1*k,y-7.5*k,x+2*k,y-8*k);
+    ctx.bezierCurveTo(x+5*k,y-9*k,x+8*k,y-7*k,x+8*k,y-4*k);
+    ctx.bezierCurveTo(x+8*k,y,x+2*k,y+2*k,x,y+6*k); ctx.closePath(); }
+  (function frame(now){ const el=now-t0; ctx.clearRect(0,0,cv.width,cv.height);
+    parts.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.12; p.vx*=0.99; p.life=Math.max(0,1-el/ms);
+      ctx.save(); ctx.globalAlpha=p.life; ctx.fillStyle='#ff5ea8'; ctx.shadowColor='#ff5ea8'; ctx.shadowBlur=12;
+      heartPath(ctx,p.x,p.y,p.s); ctx.fill(); ctx.restore(); });
+    if(el<ms) requestAnimationFrame(frame); else ctx.clearRect(0,0,cv.width,cv.height);
+  })(t0);
+}
+
+/* ---- Interrogatoire : le hacker parle, Aline écrit ---- */
+function askScene(id, react){
+  return new Promise(async resolve=>{
+    print('&nbsp;');
+    await sayLine(id, 'warn');               // la question (voix + frappe)
+    const box=document.createElement('div');box.className='ask';
+    box.innerHTML=`<div class="q">&gt;_ ta réponse (il la lira)</div>`+
+      `<div class="field"><span class="prompt">&gt;</span>`+
+      `<textarea rows="1" maxlength="400" placeholder="écris ici, puis Entrée..."></textarea></div>`+
+      `<div class="arow"><button class="send">&gt; Envoyer</button><button class="skip">passer</button></div>`;
+    term.appendChild(box);scrollBottom();
+    const ta=box.querySelector('textarea'),sendB=box.querySelector('.send'),skipB=box.querySelector('.skip');
+    setTimeout(()=>{try{ta.focus();}catch(e){}},60);
+    ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';scrollBottom();});
+    let done=false;
+    const finish=val=>{
+      if(done)return; done=true;
+      const v=(val||'').trim();
+      ANSWERS.push({q:TXT[id], a:v});
+      box.remove();
+      if(v) print('&gt; '+escapeHtml(v),'answer');
+      if(react) print(react,'sys');
+      scrollBottom(); resolve();
+    };
+    sendB.addEventListener('click',()=>{ta.value.trim()?finish(ta.value):ta.focus();});
+    skipB.addEventListener('click',()=>finish(''));
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if(ta.value.trim())finish(ta.value);}});
+  });
+}
+
+/* ---- Coffre-fort : fichiers qui se déverrouillent ---- */
+async function vaultAnim(){
+  print('&nbsp;');
+  print('> contenu du dossier caché :','dim');
+  const files=['premier_regard.txt','ta_memoire.txt','le_matin.txt','les_petites_choses.txt',
+               'ton_rire.txt','les_jours_sombres.txt','ce_que_je_n_ose_pas.txt','plus_tard.txt','bientot_noel.txt'];
+  const v=document.createElement('div');v.className='vault';term.appendChild(v);
+  const rows=files.map(f=>{
+    const r=document.createElement('div');r.className='vrow';
+    r.innerHTML=`<span>├─ ${f}</span><span class="st-lock">🔒 VERROUILLÉ</span>`;
+    v.appendChild(r);return r;
+  });
+  // la lettre : reste protégée (présage de l'acte 3)
+  const prot=document.createElement('div');prot.className='vrow';
+  prot.innerHTML=`<span>└─ pour_toi_Aline.txt</span><span class="st-lock">🔒 PROTÉGÉ</span>`;
+  v.appendChild(prot);
+  scrollBottom();await sleep(500);
+  for(const r of rows){ if(aborted)break;
+    const s=r.querySelector('span:last-child');s.className='st-open';s.textContent='🔓 OUVERT';
+    await sleep(fast?55:320);
+  }
+  await sleep(fast?120:450);
+  const ps=prot.querySelector('span:last-child'); ps.textContent='🔒 ACCÈS REFUSÉ'; sfxGlitch();
+  await sleep(fast?150:750);
+}
+
+/* ---- Envoi des réponses d'Aline à Florent ---- */
+async function sendAnswers(){
+  if(!ANSWERS.length) return;
+  try{ localStorage.setItem('aline_answers', JSON.stringify(ANSWERS)); }catch(e){}
+  if(!SEND_EMAIL) return;
+  const lines=ANSWERS.map((x,i)=>`Q${i+1} : ${x.q}\nReponse : ${x.a||'(laissee vide)'}`).join('\n\n');
+  try{
+    await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(SEND_EMAIL),{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({name:"Surprise d'Aline", _subject:"Les reponses d'Aline", _captcha:"false", message:lines})
+    });
+  }catch(e){}
+}
+
+async function scanAnim(){
+  print('&nbsp;');
+  print('> scan_cible --nom "Aline"','line dim');
+  await sleep(300);
+  await progress('   analyse', 1400);
+  print('CIBLE IDENTIFIÉE : Aline','ok');
+  print('   ├─ statut................ beaucoup trop jolie','sys');
+  print('   ├─ niveau de danger....... fait fondre les cœurs','sys');
+  print('   └─ failles détectées...... aucune (bien tenté)','sys');
+  await sleep(700);
+}
+
+async function leakAnim(){
+  print('&nbsp;');
+  print('> contournement du pare-feu de Florent...','dim');
+  await sleep(400); shake();
+  print('PARE-FEU NEUTRALISÉ. (sérieusement, "azerty123" ?)','danger');
+  print('>>> FUITE DE DONNÉES EN COURS <<<','danger');
+  await progress('   extraction', 1500);
+}
+
+const HEART = String.raw`
+   ****     ****
+ ********* *********
+***********************
+***********************
+ *********************
+   *****************
+     *************
+       *********
+         *****
+          *`;
+
+async function finale(){
+  print('&nbsp;');
+  setMood('tender');
+  sendAnswers();                 // envoi des réponses d'Aline à Florent
+  matrixPink=true; shake(); sfxReveal();   // la pluie Matrix vire au rose
+  heartBurst(4200);
+  const f=document.createElement('div');f.id='finale';
+  f.innerHTML=`<pre>${HEART}</pre><div class="names">Florent <span class="heartbig">❤</span> Aline</div>`;
+  term.appendChild(f);scrollBottom();await sleep(900);
+  print(`<span class="dim">— ce n'était pas un piratage. c'était une déclaration. —</span>`);
+  const wrap=document.createElement('div'); wrap.style.textAlign='center'; wrap.style.margin='8px 0 20vh';
+  const b=document.createElement('button'); b.id='replyLove'; b.textContent='❤ Aller le retrouver';
+  wrap.appendChild(b); term.appendChild(wrap); scrollBottom();
+  b.addEventListener('click',()=>{ if(b.disabled)return; heartBurst(4200); sfxReveal(); b.disabled=true; b.textContent='❤ message transmis';
+    print(`<span style="color:var(--pink);text-shadow:0 0 8px var(--pink)">&gt; Alors file le voir. Il t'attend. Pour de vrai.</span>`); scrollBottom(); });
+  skipBtn.disabled=true;
+  replayBtn.classList.remove('hidden');
+}
+
+const TENDER=new Set(['m1b','m2b','m3b','m5b','m4b','t1','q2','q3','q4','d3','rev3','rev4','rev5']);
+const MENACE=new Set(['h4','h5','h8']);
+function moodFor(s){ if(s.t==='msg'||s.t==='letter'||s.t==='unmask')return 'tender'; if(s.id&&TENDER.has(s.id))return 'tender'; if(s.id&&MENACE.has(s.id))return 'menace'; return 'neutral'; }
+
+async function run(){
+  startDrone('tense');
+  for(const s of SCENES){
+    if(aborted) break;
+    setMood(moodFor(s));
+    if(s.id==='m1i'){ document.body.classList.add('love'); startDrone('warm'); heartbeat(true); }
+    if(s.t==='say'){ print('&nbsp;'); await sayLine(s.id, s.cls); }
+    else if(s.t==='msg'){ print('&nbsp;'); await sayMsg(s.id, s.tag); }
+    else if(s.t==='ask'){ await askScene(s.id, s.react); }
+    else if(s.t==='letter'){ await letterScene(s.ids, s.tag); }
+    else if(s.t==='drafts'){ await draftsAnim(); }
+    else if(s.t==='unmask'){ await unmaskAnim(); }
+    else if(s.t==='vault'){ await vaultAnim(); }
+    else if(s.t==='scan'){ await scanAnim(); }
+    else if(s.t==='leak'){ await leakAnim(); }
+    else if(s.t==='finale'){ await finale(); }
+    setProgress();
+  }
+}
+
+/* ---- Matrix ---- */
+(function matrix(){
+  const cv=document.getElementById('matrix'),ctx=cv.getContext('2d');
+  let drops,fontSize=14;
+  const chars="アイウエオ0123456789ABCDEF<>/{}[]=+*♥ALINE";
+  function resize(){cv.width=innerWidth;cv.height=innerHeight;drops=Array(Math.floor(cv.width/fontSize)).fill(1);}
+  resize();addEventListener('resize',resize);
+  setInterval(()=>{
+    ctx.fillStyle='rgba(0,5,0,.08)';ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle=matrixPink?'#ff5ea8':'#00ff41';ctx.font=fontSize+'px monospace';
+    for(let i=0;i<drops.length;i++){
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)],i*fontSize,drops[i]*fontSize);
+      if(drops[i]*fontSize>cv.height && Math.random()>.975)drops[i]=0;
+      drops[i]++;
+    }
+  },55);
+})();
+
+/* ---- Contrôles ---- */
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  const btn=document.getElementById('startBtn'); btn.disabled=true;
+  document.getElementById('loadbar').textContent='connexion...';
+  initAudio();                       // contexte audio créé sur le geste de clic
+  unlockAudio();                     // DÉBLOCAGE iOS — impératif dans le geste, avant tout await
+  await preload();
+  document.getElementById('boot').classList.add('hidden');
+  controls.classList.remove('hidden');
+  run();
+});
+skipBtn.addEventListener('click', ()=>{ fast=true; if(current){current.playbackRate=1.9;} });
+muteBtn.addEventListener('click', ()=>{ muted=!muted; if(current)current.muted=muted; setMasterMute(muted); muteBtn.textContent=muted?'🔇 Son : OFF':'🔊 Son : ON'; });
+replayBtn.addEventListener('click', ()=>{ aborted=true; if(current)current.pause(); setTimeout(()=>location.reload(),120); });
+
+(function bootAnim(){
+  const el=document.getElementById('bootLine');
+  const seq=['initialisation du noyau','montage du système de fichiers','recherche de cible...','CIBLE TROUVÉE : ALINE'];
+  let i=0;setInterval(()=>{el.innerHTML=seq[i%seq.length]+'<span class="blink">_</span>';i++;},1100);
+})();
+</script>
+</body>
+</html>
