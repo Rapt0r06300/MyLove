@@ -18,7 +18,7 @@
     -webkit-text-size-adjust:100%; text-size-adjust:100%;
     -webkit-tap-highlight-color:transparent;
   }
-  #matrix{position:fixed;inset:0;z-index:0;opacity:.35}
+  #matrix{position:fixed;inset:0;z-index:0;opacity:.18}
   #crt{
     position:fixed;inset:0;z-index:40;pointer-events:none;
     background:
@@ -26,7 +26,8 @@
       repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,20,0,.25) 3px, rgba(0,0,0,0) 4px);
     mix-blend-mode:multiply;
   }
-  #screen{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;padding:16px;max-width:900px;margin:0 auto}
+  #screen{position:relative;z-index:10;height:100%;display:flex;flex-direction:column;padding:16px;max-width:900px;margin:0 auto;
+          background:linear-gradient(90deg, transparent, rgba(0,7,2,.78) 6%, rgba(0,7,2,.78) 94%, transparent)}
 
   /* Démarrage */
   #boot{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:26px}
@@ -42,11 +43,11 @@
   #terminal{flex:1;overflow-y:auto;overflow-x:hidden;font-size:clamp(13px,3.3vw,16px);line-height:1.55;padding:8px 4px 40vh;scrollbar-width:thin;scrollbar-color:var(--green-dark) transparent}
   #terminal::-webkit-scrollbar{width:6px}
   #terminal::-webkit-scrollbar-thumb{background:var(--green-dark);border-radius:3px}
-  .line{white-space:pre-wrap;word-break:break-word;margin:3px 0}
+  .line{white-space:pre-wrap;word-break:break-word;margin:3px 0;text-shadow:0 1px 3px #000,0 0 2px #000}
   .sys{color:var(--green-dim)}
-  .warn{color:var(--amber);text-shadow:0 0 6px var(--amber)}
-  .danger{color:var(--red);text-shadow:0 0 6px var(--red)}
-  .ok{color:var(--green);text-shadow:0 0 6px var(--green)}
+  .warn{color:var(--amber);text-shadow:0 0 6px var(--amber),0 1px 3px #000}
+  .danger{color:var(--red);text-shadow:0 0 6px var(--red),0 1px 3px #000}
+  .ok{color:var(--green);text-shadow:0 0 6px var(--green),0 1px 3px #000}
   .dim{color:var(--green-dark)}
   .blink{animation:blink 1s steps(1) infinite}
   @keyframes blink{50%{opacity:0}}
