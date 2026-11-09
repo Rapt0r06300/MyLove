@@ -239,8 +239,6 @@
 </div>
 
 <div id="controls" class="hidden">
-  <button id="skipBtn">⏩ Accélérer</button>
-  <button id="muteBtn">🔊 Son : ON</button>
   <button id="replayBtn" class="hidden">↻ Rejouer</button>
 </div>
 
@@ -364,21 +362,21 @@ const TXT = {
 
 const term = document.getElementById('terminal');
 const controls = document.getElementById('controls');
-const skipBtn = document.getElementById('skipBtn');
-const muteBtn = document.getElementById('muteBtn');
 const replayBtn = document.getElementById('replayBtn');
 
 let fast=false, muted=false, aborted=false;
 let matrixPink=false;
-const audios = {};
-let current = null;
+const audios = {};        // éléments HTML (repli si Web Audio indisponible)
+const buffers = {};       // clips décodés en mémoire (Web Audio → ignore l'interrupteur silencieux iOS)
+let current = null;       // poignée du clip en cours : { stop() }
 
 /* ---- déblocage audio iOS (doit s'exécuter DANS le geste de clic) ---- */
 function unlockAudio(){
-  // Web Audio
-  try{ if(AC&&AC.state==='suspended') AC.resume();
-       const b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); }catch(e){}
-  // chaque clip <audio> : créé + débloqué pendant le geste (sinon Safari iOS bloque)
+  // réveille le moteur Web Audio DANS le geste (sinon Safari iOS le garde suspendu)
+  try{ if(AC&&AC.state==='suspended') AC.resume(); }catch(e){}
+  try{ if(AC){ const b=AC.createBuffer(1,1,22050), s=AC.createBufferSource(); s.buffer=b; s.connect(AC.destination); s.start(0); } }catch(e){}
+  if(AC) return; // Web Audio dispo → la voix jouera via buffers (ignore l'interrupteur silencieux), pas besoin des <audio>
+  // repli : pas de Web Audio → on débloque les éléments HTML pendant le geste
   Object.keys(TXT).forEach(id=>{
     let a=audios[id];
     if(!a){ a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; }
@@ -393,16 +391,31 @@ function unlockAudio(){
 function preload(){
   const ids = Object.keys(TXT);
   let done=0;
-  return Promise.all(ids.map(id=>new Promise(res=>{
-    let a=audios[id], fresh=false;
-    if(!a){ a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; fresh=true; }
-    const ok=()=>{done++;document.getElementById('loadbar').textContent=`chargement ${done}/${ids.length}`;res();};
-    if(a.readyState>=3){ ok(); return; }
-    a.addEventListener('canplaythrough', ok, {once:true});
-    a.addEventListener('error', ok, {once:true});
-    if(fresh) a.load();
-    setTimeout(ok, 6000); // filet de sécurité
-  })));
+  const tick=()=>{done++;document.getElementById('loadbar').textContent=`chargement ${done}/${ids.length}`;};
+  return Promise.all(ids.map(id=>{
+    // repli direct en <audio> si Web Audio absent
+    if(!AC){
+      return new Promise(res=>{
+        let a=audios[id]; if(!a){ a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; }
+        const ok=()=>{tick();res();};
+        if(a.readyState>=3){ ok(); return; }
+        a.addEventListener('canplaythrough', ok, {once:true});
+        a.addEventListener('error', ok, {once:true});
+        a.load(); setTimeout(ok, 6000);
+      });
+    }
+    // chemin principal : on télécharge puis on décode en mémoire (Web Audio)
+    return fetch('audio/'+id+'.mp3')
+      .then(r=>r.arrayBuffer())
+      .then(buf=>new Promise((resolve)=>{
+        AC.decodeAudioData(buf, b=>{ buffers[id]=b; resolve(); },
+                                () => { // décodage échoué → repli <audio>
+                                  const a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; resolve();
+                                });
+      }))
+      .catch(()=>{ const a=new Audio('audio/'+id+'.mp3'); a.preload='auto'; audios[id]=a; })
+      .then(tick);
+  }));
 }
 
 const sleep = ms => new Promise(r=>setTimeout(r, fast?Math.min(ms,60):ms));
@@ -414,17 +427,36 @@ function setSpeaking(on){ if(speaker) speaker.classList.toggle('speaking', on); 
 
 function playAndWait(id){
   return new Promise(res=>{
+    const rate=fast?1.9:1;
+    const b=buffers[id];
+    // chemin principal : AudioBufferSource → master (Web Audio, insensible au mode silencieux iOS)
+    if(b && AC && master){
+      const src=AC.createBufferSource();
+      src.buffer=b; src.playbackRate.value=rate; src.connect(master);
+      let ended=false;
+      const done=()=>{ if(ended)return; ended=true; try{src.disconnect();}catch(e){} setSpeaking(false); res(b.duration); };
+      src.onended=done;
+      current={ stop:()=>{ try{src.stop();}catch(e){} done(); } };
+      setSpeaking(true);
+      try{ src.start(0); }catch(e){ done(); return; }
+      setTimeout(done, (b.duration/rate)*1000 + 500); // filet si onended ne se déclenche pas
+      return;
+    }
+    // repli : élément HTML
     const a=audios[id];
     if(!a){res(1.6);return;}
-    current=a;
-    a.muted=muted; a.playbackRate=fast?1.9:1; a.currentTime=0;
-    const done=()=>{a.onended=null;setSpeaking(false);res(a.duration||1.6);};
-    a.onended=done;
+    current={ stop:()=>{ try{a.pause();}catch(e){} } };
+    a.muted=muted; a.playbackRate=rate; a.currentTime=0;
+    const done2=()=>{a.onended=null;setSpeaking(false);res(a.duration||1.6);};
+    a.onended=done2;
     setSpeaking(true);
     a.play().catch(()=>{setSpeaking(false);res(a.duration||1.6);});
   });
 }
-function clipDur(id){const a=audios[id];return (a&&isFinite(a.duration)&&a.duration>0)?a.duration:Math.max(1.5,(TXT[id]||'').length*0.06);}
+function clipDur(id){
+  const b=buffers[id]; if(b&&isFinite(b.duration)&&b.duration>0) return b.duration;
+  const a=audios[id]; return (a&&isFinite(a.duration)&&a.duration>0)?a.duration:Math.max(1.5,(TXT[id]||'').length*0.06);
+}
 
 async function typeInto(el, text, ms){
   const n=Math.max(text.length,1); const delay=ms/n;
@@ -719,7 +751,6 @@ async function finale(){
   wrap.appendChild(b); term.appendChild(wrap); scrollBottom();
   b.addEventListener('click',()=>{ if(b.disabled)return; heartBurst(4200); sfxReveal(); b.disabled=true; b.textContent='❤ message transmis';
     print(`<span style="color:var(--pink);text-shadow:0 0 8px var(--pink)">&gt; Alors file le voir. Il t'attend. Pour de vrai.</span>`); scrollBottom(); });
-  skipBtn.disabled=true;
   replayBtn.classList.remove('hidden');
 }
 
@@ -776,9 +807,7 @@ document.getElementById('startBtn').addEventListener('click', async ()=>{
   controls.classList.remove('hidden');
   run();
 });
-skipBtn.addEventListener('click', ()=>{ fast=true; if(current){current.playbackRate=1.9;} });
-muteBtn.addEventListener('click', ()=>{ muted=!muted; if(current)current.muted=muted; setMasterMute(muted); muteBtn.textContent=muted?'🔇 Son : OFF':'🔊 Son : ON'; });
-replayBtn.addEventListener('click', ()=>{ aborted=true; if(current)current.pause(); setTimeout(()=>location.reload(),120); });
+replayBtn.addEventListener('click', ()=>{ aborted=true; if(current&&current.stop)current.stop(); setTimeout(()=>location.reload(),120); });
 
 (function bootAnim(){
   const el=document.getElementById('bootLine');
